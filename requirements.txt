@@ -1,0 +1,8 @@
+opencv-python>=4.5.0
+mss>=6.0.0
+pynput>=1.7.0
+websockets>=10.0
+aiohttp>=3.8.0
+cryptography>=3.4.0
+prometheus-client>=0.15.0
+numpy>=1.21.0
