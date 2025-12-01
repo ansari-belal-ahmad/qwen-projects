@@ -129,7 +129,7 @@ class EventBroadcaster:
     def remove_client(self, client: Union[WebSocketResponse, ServerProtocol]):
         """Remove client"""
         self.clients.discard(client)
-        self.metrics.connected_clients.clear()
+        self.metrics.connected_clients.dec()
         logging.info(f"Client disconnected: {client.remote_address if hasattr(client, 'remote_address') else 'Unknown'}")
 
     async def broadcast_event(self, event_type: EventType, details: dict):
@@ -199,4 +199,6 @@ class EventBroadcaster:
                 await client.send(data)
         except Exception as e:
             logging.error(f"Error sending to client: {e}")
-            self.remove_client(client)
+            # Only try to remove the client if it still exists in our clients set
+            if client in self.clients:
+                self.remove_client(client)

@@ -185,11 +185,26 @@ class RemoteDesktopServer:
         self.broadcaster.add_client(websocket)
 
         try:
+            # Get actual screen dimensions from capture engine
+            screen_width = 1920
+            screen_height = 1080
+            
+            # If capture engine is initialized, get actual dimensions from the first monitor
+            if hasattr(self.capture_engine, 'monitors') and self.capture_engine.monitors:
+                try:
+                    first_monitor = self.capture_engine.monitors[0]
+                    screen_width = first_monitor.get('width', 1920) if isinstance(first_monitor, dict) else 1920
+                    screen_height = first_monitor.get('height', 1080) if isinstance(first_monitor, dict) else 1080
+                except (IndexError, AttributeError, KeyError):
+                    # Fallback to defaults if there's an issue accessing monitor dimensions
+                    screen_width = 1920
+                    screen_height = 1080
+
             # Send screen size
             await websocket.send(json.dumps({
                 "type": "screen_size",
-                "width": 1920,
-                "height": 1080
+                "width": screen_width,
+                "height": screen_height
             }))
 
             async for message in websocket:
@@ -201,7 +216,22 @@ class RemoteDesktopServer:
                     else:
                         # Handle text messages (JSON commands)
                         data = json.loads(message)
-                        await self.input_controller.handle_command(data)
+                        
+                        # Handle different command types
+                        cmd_type = data.get('type', 'control')
+                        
+                        if cmd_type == 'control':
+                            # These are input control commands (mouse, keyboard, etc.)
+                            await self.input_controller.handle_command(data)
+                        elif cmd_type == 'command':
+                            # These are system commands (auto-click, settings, etc.)
+                            await self._handle_system_command(data)
+                        elif cmd_type == 'ping':
+                            # Respond to ping for latency measurement
+                            await websocket.send(json.dumps({"type": "pong"}))
+                        else:
+                            # Unknown command type
+                            logging.warning(f"Unknown command type: {cmd_type}")
                 except Exception as e:
                     logging.error(f"WebSocket message error: {e}")
         except Exception as e:
@@ -237,6 +267,30 @@ class RemoteDesktopServer:
                 "status": "error",
                 "message": str(e)
             }))
+
+    async def _handle_system_command(self, data: dict):
+        """Handle system commands from the client"""
+        try:
+            action = data.get('action')
+            
+            if action == 'start_auto_click':
+                # Trigger start auto click in the input controller
+                await self.input_controller.handle_command({'action': 'start_auto_click'})
+            elif action == 'stop_auto_click':
+                # Trigger stop auto click in the input controller
+                await self.input_controller.handle_command({'action': 'stop_auto_click'})
+            elif action == 'set_quality':
+                # Handle quality setting (would update performance config in a full implementation)
+                quality = data.get('quality', 75)
+                logging.info(f"Quality setting changed to: {quality}%")
+            elif action == 'set_fps':
+                # Handle FPS setting (would update performance config in a full implementation)
+                fps = data.get('fps', 30)
+                logging.info(f"FPS setting changed to: {fps}")
+            else:
+                logging.warning(f"Unknown system command action: {action}")
+        except Exception as e:
+            logging.error(f"System command handling error: {e}")
 
     async def frame_broadcast_loop(self):
         """Main frame broadcasting loop"""

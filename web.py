@@ -16,7 +16,9 @@ class WebInterface:
 
     def _generate_html(self) -> str:
         """Generate responsive HTML interface"""
-        return """
+        # Get the WebSocket port from the configuration
+        ws_port = self.config.server.ws_port
+        return f"""
         <!DOCTYPE html>
         <html lang="en">
         <head>
@@ -26,68 +28,68 @@ class WebInterface:
             <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
             <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
             <style>
-                :root {
+                :root {{
                     --primary-color: #2c3e50;
                     --secondary-color: #3498db;
                     --success-color: #27ae60;
                     --danger-color: #e74c3c;
                     --dark-color: #1a1a1a;
-                }
+                }}
                 
-                body {
+                body {{
                     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
                     background-color: #f5f5f5;
                     overflow: hidden;
-                }
+                }}
                 
-                .main-header {
+                .main-header {{
                     background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
                     color: white;
                     padding: 1rem;
                     box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-                }
+                }}
                 
-                .screen-container {
+                .screen-container {{
                     position: relative;
                     background-color: var(--dark-color);
                     overflow: hidden;
                     height: calc(100vh - 120px);
-                }
+                }}
                 
-                #screen {
+                #screen {{
                     max-width: 100%;
                     max-height: 100%;
                     object-fit: contain;
                     cursor: crosshair;
-                }
+                }}
                 
-                .control-panel {
+                .control-panel {{
                     background: white;
                     border-radius: 10px;
                     box-shadow: 0 4px 15px rgba(0,0,0,0.1);
                     padding: 1.5rem;
                     height: calc(100vh - 140px);
                     overflow-y: auto;
-                }
+                }}
                 
-                .status-indicator {
+                .status-indicator {{
                     display: inline-block;
                     width: 12px;
                     height: 12px;
                     border-radius: 50%;
                     margin-right: 8px;
-                }
+                }}
                 
-                .status-connected {
+                .status-connected {{
                     background-color: var(--success-color);
                     box-shadow: 0 0 10px var(--success-color);
-                }
+                }}
                 
-                .status-disconnected {
+                .status-disconnected {{
                     background-color: var(--danger-color);
-                }
+                }}
                 
-                .log-container {
+                .log-container {{
                     background-color: #2c3e50;
                     color: #ecf0f1;
                     border-radius: 8px;
@@ -96,50 +98,50 @@ class WebInterface:
                     overflow-y: auto;
                     font-family: 'Courier New', monospace;
                     font-size: 0.85rem;
-                }
+                }}
                 
-                .log-entry {
+                .log-entry {{
                     margin-bottom: 0.5rem;
                     padding: 0.25rem;
                     border-left: 3px solid transparent;
-                }
+                }}
                 
-                .log-entry.key { border-left-color: var(--success-color); }
-                .log-entry.click { border-left-color: var(--secondary-color); }
-                .log-entry.scroll { border-left-color: #9b59b6; }
-                .log-entry.move { border-left-color: #f39c12; }
-                .log-entry.system { border-left-color: #95a5a6; }
+                .log-entry.key {{ border-left-color: var(--success-color); }}
+                .log-entry.click {{ border-left-color: var(--secondary-color); }}
+                .log-entry.scroll {{ border-left-color: #9b59b6; }}
+                .log-entry.move {{ border-left-color: #f39c12; }}
+                .log-entry.system {{ border-left-color: #95a5a6; }}
                 
-                .metric-card {
+                .metric-card {{
                     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
                     color: white;
                     border-radius: 10px;
                     padding: 1rem;
                     margin-bottom: 1rem;
-                }
+                }}
                 
-                .btn-custom {
+                .btn-custom {{
                     border-radius: 25px;
                     padding: 0.5rem 1.5rem;
                     font-weight: 500;
                     transition: all 0.3s ease;
-                }
+                }}
                 
-                .btn-custom:hover {
+                .btn-custom:hover {{
                     transform: translateY(-2px);
                     box-shadow: 0 5px 15px rgba(0,0,0,0.2);
-                }
+                }}
                 
-                .quality-slider {
+                .quality-slider {{
                     width: 100%;
-                }
+                }}
                 
-                @media (max-width: 768px) {
-                    .control-panel {
+                @media (max-width: 768px) {{
+                    .control-panel {{
                         height: auto;
                         max-height: 300px;
-                    }
-                }
+                    }}
+                }}
             </style>
         </head>
         <body>
@@ -236,20 +238,21 @@ class WebInterface:
             <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
             <script>
                 // Enterprise-grade JavaScript implementation
-                class RemoteDesktopClient {
-                    constructor() {
+                class RemoteDesktopClient {{
+                    constructor() {{
                         this.ws = null;
                         this.connected = false;
                         this.screenWidth = 1920;
                         this.screenHeight = 1080;
                         this.lastPingTime = 0;
                         this.autoClickActive = false;
+                        this.wsPort = {ws_port}; // Use the configured WebSocket port
                         this.initializeComponents();
                         this.setupEventListeners();
                         this.connectWebSocket();
-                    }
+                    }}
                     
-                    initializeComponents() {
+                    initializeComponents() {{
                         this.screenImg = document.getElementById('screen');
                         this.connectionStatus = document.getElementById('connection-status');
                         this.statusIndicator = document.getElementById('status-indicator');
@@ -258,9 +261,9 @@ class WebInterface:
                         this.qualitySlider = document.getElementById('quality-slider');
                         this.qualityValue = document.getElementById('quality-value');
                         this.fpsSelect = document.getElementById('fps-select');
-                    }
+                    }}
                     
-                    setupEventListeners() {
+                    setupEventListeners() {{
                         // Screen interactions
                         this.screenImg.addEventListener('contextmenu', e => e.preventDefault());
                         this.screenImg.addEventListener('mousedown', this.handleMouseDown.bind(this));
@@ -280,225 +283,225 @@ class WebInterface:
                         // Performance controls
                         this.qualitySlider.addEventListener('input', this.updateQuality.bind(this));
                         this.fpsSelect.addEventListener('change', this.updateFPS.bind(this));
-                    }
+                    }}
                     
-                    connectWebSocket() {
+                    connectWebSocket() {{
                         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-                        const wsUrl = `${protocol}//${window.location.hostname}:8765`;
+                        const wsUrl = `${{protocol}}//${{window.location.hostname}}:${{this.wsPort}}`;
                         
                         this.ws = new WebSocket(wsUrl);
                         this.ws.binaryType = 'arraybuffer';
                         
-                        this.ws.onopen = () => {
+                        this.ws.onopen = () => {{
                             this.connected = true;
                             this.updateConnectionStatus('Connected', true);
                             this.startLatencyCheck();
-                        };
+                        }};
                         
-                        this.ws.onmessage = (event) => {
-                            if (event.data instanceof ArrayBuffer) {
+                        this.ws.onmessage = (event) => {{
+                            if (event.data instanceof ArrayBuffer) {{
                                 this.handleFrameData(event.data);
-                            } else {
+                            }} else {{
                                 this.handleJsonMessage(JSON.parse(event.data));
-                            }
-                        };
+                            }}
+                        }};
                         
-                        this.ws.onclose = () => {
+                        this.ws.onclose = () => {{
                             this.connected = false;
                             this.updateConnectionStatus('Disconnected', false);
                             setTimeout(() => this.connectWebSocket(), 2000);
-                        };
+                        }};
                         
-                        this.ws.onerror = (error) => {
+                        this.ws.onerror = (error) => {{
                             console.error('WebSocket Error:', error);
-                        };
-                    }
+                        }};
+                    }}
                     
-                    handleFrameData(arrayBuffer) {
-                        const blob = new Blob([arrayBuffer], { type: 'image/jpeg' });
+                    handleFrameData(arrayBuffer) {{
+                        const blob = new Blob([arrayBuffer], {{ type: 'image/jpeg' }});
                         const url = URL.createObjectURL(blob);
                         
                         this.screenImg.src = url;
                         //console.log(this.screenImg.src)
 
-                        if (this.screenImg.currentSrc) {
+                        if (this.screenImg.currentSrc) {{
                             URL.revokeObjectURL(this.screenImg.currentSrc);
-                        }
-                    }
+                        }}
+                    }}
                     
-                    handleJsonMessage(data) {
-                        if (data.type === 'pong') {
+                    handleJsonMessage(data) {{
+                        if (data.type === 'pong') {{
                             const latency = Math.round(performance.now() - this.lastPingTime);
                             this.latencyInfo.textContent = latency;
-                        } else if (data.type === 'screen_size') {
+                        }} else if (data.type === 'screen_size') {{
                             this.screenWidth = data.width;
                             this.screenHeight = data.height;
-                        } else {
+                        }} else {{
                             this.addLogEntry(data);
-                        }
-                    }
-                    
-                    handleMouseDown(e) {
+                        }}
+                    }}
+
+                    handleMouseDown(e) {{
                         e.preventDefault();
                         const coords = this.getScreenCoordinates(e);
                         const button = e.button === 0 ? 'left' : 'right';
-                        
-                        this.sendCommand({
+
+                        this.sendCommand({{
                             type: 'control',
                             action: 'click',
                             x: coords.x,
                             y: coords.y,
                             button: button
-                        });
-                    }
-                    
-                    handleDoubleClick(e) {
+                        }});
+                    }}
+
+                    handleDoubleClick(e) {{
                         e.preventDefault();
                         const coords = this.getScreenCoordinates(e);
-                        
-                        this.sendCommand({
+
+                        this.sendCommand({{
                             type: 'control',
                             action: 'double_click',
                             x: coords.x,
                             y: coords.y
-                        });
-                    }
-                    
-                    handleMouseMove(e) {
+                        }});
+                    }}
+
+                    handleMouseMove(e) {{
                         const coords = this.getScreenCoordinates(e);
-                        
-                        if (!this.lastMoveTime || Date.now() - this.lastMoveTime > 50) {
+
+                        if (!this.lastMoveTime || Date.now() - this.lastMoveTime > 50) {{
                             this.lastMoveTime = Date.now();
-                            this.sendCommand({
+                            this.sendCommand({{
                                 type: 'control',
                                 action: 'move',
                                 x: coords.x,
                                 y: coords.y
-                            });
-                        }
-                    }
-                    
-                    handleWheel(e) {
+                            }});
+                        }}
+                    }}
+
+                    handleWheel(e) {{
                         e.preventDefault();
                         const coords = this.getScreenCoordinates(e);
                         const deltaY = e.deltaY > 0 ? 1 : -1;
-                        
-                        this.sendCommand({
+
+                        this.sendCommand({{
                             type: 'control',
                             action: 'scroll',
                             x: coords.x,
                             y: coords.y,
                             dy: deltaY
-                        });
-                    }
-                    
-                    handleKeyDown(e) {
-                        if (e.key === 'End') {
+                        }});
+                    }}
+
+                    handleKeyDown(e) {{
+                        if (e.key.toLowerCase() === 'end') {{
                             e.preventDefault();
                             return;
-                        }
-                        
-                        this.sendCommand({
+                        }}
+
+                        this.sendCommand({{
                             type: 'control',
                             action: 'key',
                             key: e.key
-                        });
-                    }
-                    
-                    getScreenCoordinates(e) {
+                        }});
+                    }}
+
+                    getScreenCoordinates(e) {{
                         const rect = this.screenImg.getBoundingClientRect();
                         const scaleX = this.screenWidth / rect.width;
                         const scaleY = this.screenHeight / rect.height;
-                        
-                        return {
+
+                        return {{
                             x: Math.round((e.clientX - rect.left) * scaleX),
                             y: Math.round((e.clientY - rect.top) * scaleY)
-                        };
-                    }
-                    
-                    sendCommand(command) {
-                        if (this.connected) {
+                        }};
+                    }}
+
+                    sendCommand(command) {{
+                        if (this.connected) {{
                             this.ws.send(JSON.stringify(command));
-                        }
-                    }
-                    
-                    sendClick(button) {
-                        this.sendCommand({
+                        }}
+                    }}
+
+                    sendClick(button) {{
+                        this.sendCommand({{
                             type: 'control',
                             action: 'click',
                             button: button
-                        });
-                    }
-                    
-                    toggleAutoClick() {
+                        }});
+                    }}
+
+                    toggleAutoClick() {{
                         this.autoClickActive = !this.autoClickActive;
                         const btn = document.getElementById('auto-click-btn');
-                        
-                        if (this.autoClickActive) {
+
+                        if (this.autoClickActive) {{
                             btn.classList.remove('btn-success');
                             btn.classList.add('btn-danger');
                             btn.innerHTML = '<i class="fas fa-stop me-2"></i>Stop Auto Click';
-                            this.sendCommand({ type: 'command', action: 'start_auto_click' });
-                        } else {
+                            this.sendCommand({{ type: 'command', action: 'start_auto_click' }});
+                        }} else {{
                             btn.classList.remove('btn-danger');
                             btn.classList.add('btn-success');
                             btn.innerHTML = '<i class="fas fa-robot me-2"></i>Auto Click';
-                            this.sendCommand({ type: 'command', action: 'stop_auto_click' });
-                        }
-                    }
-                    
-                    updateQuality() {
+                            this.sendCommand({{ type: 'command', action: 'stop_auto_click' }});
+                        }}
+                    }}
+
+                    updateQuality() {{
                         const quality = this.qualitySlider.value;
                         this.qualityValue.textContent = quality + '%';
-                        this.sendCommand({
+                        this.sendCommand({{
                             type: 'command',
                             action: 'set_quality',
                             quality: parseInt(quality)
-                        });
-                    }
-                    
-                    updateFPS() {
+                        }});
+                    }}
+
+                    updateFPS() {{
                         const fps = this.fpsSelect.value;
-                        this.sendCommand({
+                        this.sendCommand({{
                             type: 'command',
                             action: 'set_fps',
                             fps: parseInt(fps)
-                        });
-                    }
-                    
-                    updateConnectionStatus(status, connected) {
+                        }});
+                    }}
+
+                    updateConnectionStatus(status, connected) {{
                         this.connectionStatus.textContent = status;
-                        this.statusIndicator.className = `status-indicator ${connected ? 'status-connected' : 'status-disconnected'}`;
-                    }
-                    
-                    addLogEntry(data) {
+                        this.statusIndicator.className = `status-indicator ${{connected ? 'status-connected' : 'status-disconnected'}}`;
+                    }}
+
+                    addLogEntry(data) {{
                         const entry = document.createElement('div');
-                        entry.className = `log-entry ${data.type}`;
-                        entry.textContent = `[${data.timestamp}] ${data.type.toUpperCase()}: ${JSON.stringify(data.details)}`;
-                        
+                        entry.className = `log-entry ${{data.type}}`;
+                        entry.textContent = `[${{data.timestamp}}] ${{data.type.toUpperCase()}}: ${{JSON.stringify(data.details)}}`;
+
                         this.eventLog.appendChild(entry);
                         this.eventLog.scrollTop = this.eventLog.scrollHeight;
-                        
+
                         // Keep only last 100 entries
-                        while (this.eventLog.childNodes.length > 100) {
+                        while (this.eventLog.childNodes.length > 100) {{
                             this.eventLog.removeChild(this.eventLog.firstChild);
-                        }
-                    }
-                    
-                    startLatencyCheck() {
-                        setInterval(() => {
-                            if (this.connected) {
+                        }}
+                    }}
+
+                    startLatencyCheck() {{
+                        setInterval(() => {{
+                            if (this.connected) {{
                                 this.lastPingTime = performance.now();
-                                this.sendCommand({ type: 'ping' });
-                            }
-                        }, 2000);
-                    }
-                }
-                
+                                this.sendCommand({{ type: 'ping' }});
+                            }}
+                        }}, 2000);
+                    }}
+                }}
+
                 // Initialize the application
-                document.addEventListener('DOMContentLoaded', () => {
+                document.addEventListener('DOMContentLoaded', () => {{
                     new RemoteDesktopClient();
-                });
+                }});
             </script>
         </body>
         </html>
