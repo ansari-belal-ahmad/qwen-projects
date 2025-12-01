@@ -22,7 +22,13 @@ class SecurityManager:
     """Enterprise-grade security management"""
     def __init__(self, config: SecurityConfig):
         self.config = config
-        self.cipher = Fernet(config.encryption_key.encode()) if config.encryption_key else None
+        self.cipher = None
+        if config.encryption_key:
+            try:
+                self.cipher = Fernet(config.encryption_key.encode())
+            except Exception as e:
+                print(f"Error initializing encryption: {e}")
+                self.cipher = None
 
     def encrypt_data(self, data: bytes) -> bytes:
         """Encrypt data if encryption is enabled"""

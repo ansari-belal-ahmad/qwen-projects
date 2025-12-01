@@ -5,10 +5,82 @@ import asyncio
 import time
 import logging
 import random
-from pynput import keyboard, mouse
-from pynput.keyboard import Controller as KController, Key
-from pynput.mouse import Controller as MController, Button
 from models import SystemConfig
+
+# Handle pynput import gracefully for headless environments
+try:
+    from pynput import keyboard, mouse
+    from pynput.keyboard import Controller as KController, Key
+    from pynput.mouse import Controller as MController, Button
+    PYNPUT_AVAILABLE = True
+except ImportError as e:
+    # Create mock objects for headless environments
+    class MockController:
+        def __init__(self):
+            pass
+        def press(self, *args, **kwargs):
+            pass
+        def release(self, *args, **kwargs):
+            pass
+        def click(self, *args, **kwargs):
+            pass
+        def scroll(self, *args, **kwargs):
+            pass
+        @property
+        def position(self):
+            return (0, 0)
+        @position.setter
+        def position(self, value):
+            pass
+
+    class MockKey:
+        space = 'space'
+        enter = 'enter'
+        tab = 'tab'
+        backspace = 'backspace'
+        delete = 'delete'
+        esc = 'esc'
+        shift = 'shift'
+        ctrl = 'ctrl'
+        alt = 'alt'
+        cmd = 'cmd'
+        caps_lock = 'caps_lock'
+        num_lock = 'num_lock'
+        scroll_lock = 'scroll_lock'
+        pause = 'pause'
+        insert = 'insert'
+        home = 'home'
+        end = 'end'
+        page_up = 'page_up'
+        page_down = 'page_down'
+        left = 'left'
+        right = 'right'
+        up = 'up'
+        down = 'down'
+        f1 = 'f1'
+        f2 = 'f2'
+        f3 = 'f3'
+        f4 = 'f4'
+        f5 = 'f5'
+        f6 = 'f6'
+        f7 = 'f7'
+        f8 = 'f8'
+        f9 = 'f9'
+        f10 = 'f10'
+        f11 = 'f11'
+        f12 = 'f12'
+
+    class MockButton:
+        left = 'left'
+        right = 'right'
+        middle = 'middle'
+
+    keyboard = mouse = None
+    KController = MockController
+    Key = MockKey
+    MController = MockController
+    Button = MockButton
+    PYNPUT_AVAILABLE = False
 
 
 class InputController:
@@ -42,7 +114,7 @@ class InputController:
 
             elif action == "key":
                 key = command.get("key")
-                if key.lower() != "end":  # Security: Block END key
+                if key and (key.lower() != "end" or not self.config.security.block_end_key):  # Security: Block END key (case-insensitive) based on config
                     self._press_key(key)
 
             elif action == "start_auto_click":
@@ -79,8 +151,61 @@ class InputController:
     def _press_key(self, key: str):
         """Press and release key"""
         try:
-            self.keyboard.press(key)
-            self.keyboard.release(key)
+            # Handle special keys by converting them to the appropriate Key object
+            if isinstance(key, str):
+                # Map special keys to their Key objects
+                special_keys = {
+                    'space': Key.space,
+                    'enter': Key.enter,
+                    'tab': Key.tab,
+                    'backspace': Key.backspace,
+                    'delete': Key.delete,
+                    'escape': Key.esc,
+                    'esc': Key.esc,
+                    'shift': Key.shift,
+                    'ctrl': Key.ctrl,
+                    'alt': Key.alt,
+                    'cmd': Key.cmd,
+                    'win': Key.cmd,
+                    'caps_lock': Key.caps_lock,
+                    'num_lock': Key.num_lock,
+                    'scroll_lock': Key.scroll_lock,
+                    'pause': Key.pause,
+                    'insert': Key.insert,
+                    'home': Key.home,
+                    'end': Key.end,
+                    'page_up': Key.page_up,
+                    'page_down': Key.page_down,
+                    'left': Key.left,
+                    'right': Key.right,
+                    'up': Key.up,
+                    'down': Key.down,
+                    'f1': Key.f1,
+                    'f2': Key.f2,
+                    'f3': Key.f3,
+                    'f4': Key.f4,
+                    'f5': Key.f5,
+                    'f6': Key.f6,
+                    'f7': Key.f7,
+                    'f8': Key.f8,
+                    'f9': Key.f9,
+                    'f10': Key.f10,
+                    'f11': Key.f11,
+                    'f12': Key.f12,
+                }
+                
+                # If the key is a special key, use the Key object
+                if key.lower() in special_keys:
+                    key_obj = special_keys[key.lower()]
+                    self.keyboard.press(key_obj)
+                    self.keyboard.release(key_obj)
+                else:
+                    # For regular characters, just type them
+                    self.keyboard.press(key)
+                    self.keyboard.release(key)
+            else:
+                self.keyboard.press(key)
+                self.keyboard.release(key)
         except Exception as e:
             logging.error(f"Key press error: {e}")
 
