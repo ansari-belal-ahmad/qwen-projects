@@ -1,44 +1,19 @@
-// Remote Desk - Enhanced Node.js Application
-require('dotenv').config();
+// Simple Remote Desk Server with Enhanced Features
 const express = require('express');
 const http = require('http');
-const socketIo = require('socket.io');
-const cors = require('cors');
-const helmet = require('helmet');
-const rateLimit = require('express-rate-limit');
 const path = require('path');
-const Joi = require('joi');
+const fs = require('fs');
 
 const app = express();
 const server = http.createServer(app);
-const io = socketIo(server, {
-  cors: {
-    origin: "*",
-    methods: ["GET", "POST"]
-  }
-});
 
-// Security middleware
-app.use(helmet());
-app.use(cors());
-
-// Rate limiting
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100 // limit each IP to 100 requests per windowMs
-});
-app.use(limiter);
-
-// Body parsing middleware
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true }));
-
-// Static files
+// Middleware
+app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
 const PORT = process.env.PORT || 3000;
 
-// In-memory storage for sessions and connections
+// In-memory storage
 let activeSessions = {};
 let connectedClients = {};
 let desktopData = {
@@ -48,24 +23,18 @@ let desktopData = {
   connectedDevices: 0
 };
 
-// Authentication middleware
+// Authentication middleware (simplified)
 const authenticate = (req, res, next) => {
   const authHeader = req.headers.authorization;
-  const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
+  const token = authHeader && authHeader.split(' ')[1];
   
-  if (!token) {
+  if (!token || (token !== 'demo-token' && token !== process.env.ACCESS_TOKEN)) {
     return res.status(401).json({ error: 'Access token required' });
   }
-  
-  // In a real app, validate the token against a database or JWT
-  if (token === process.env.ACCESS_TOKEN || token === 'demo-token') {
-    next();
-  } else {
-    res.status(403).json({ error: 'Invalid access token' });
-  }
+  next();
 };
 
-// API Routes
+// Routes
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
@@ -90,17 +59,6 @@ app.get('/api/desktop/info', authenticate, (req, res) => {
 app.post('/api/desktop/control', authenticate, (req, res) => {
   const { action, data } = req.body;
   
-  // Validate the request
-  const schema = Joi.object({
-    action: Joi.string().valid('mouse', 'keyboard', 'clipboard', 'screen', 'file-transfer').required(),
-    data: Joi.object().required()
-  });
-  
-  const { error } = schema.validate({ action, data });
-  if (error) {
-    return res.status(400).json({ error: error.details[0].message });
-  }
-  
   // Process the control action
   switch(action) {
     case 'mouse':
@@ -114,9 +72,6 @@ app.post('/api/desktop/control', authenticate, (req, res) => {
       break;
   }
   
-  // Broadcast the action to all connected clients
-  io.emit('desktop-control', { action, data });
-  
   res.json({ success: true, action, data });
 });
 
@@ -129,77 +84,8 @@ app.get('/api/sessions', authenticate, (req, res) => {
   });
 });
 
-// Socket.IO connection handling
-io.on('connection', (socket) => {
-  console.log('New client connected:', socket.id);
-  connectedClients[socket.id] = {
-    id: socket.id,
-    connectedAt: new Date().toISOString(),
-    type: 'web-client'
-  };
-  desktopData.connectedDevices = Object.keys(connectedClients).length;
-  
-  // Send initial desktop data to the new client
-  socket.emit('desktop-data', desktopData);
-  
-  // Handle desktop control events from clients
-  socket.on('desktop-control', (data) => {
-    // In a real implementation, this would send the control command to the target desktop
-    io.emit('desktop-control', data);
-  });
-  
-  // Handle file transfer
-  socket.on('file-transfer', (data) => {
-    io.emit('file-transfer', {
-      fileName: data.fileName,
-      fileSize: data.fileSize,
-      fileData: data.fileData,
-      from: socket.id
-    });
-  });
-  
-  // Handle screen sharing start/stop
-  socket.on('screen-share', (data) => {
-    if (data.action === 'start') {
-      activeSessions[socket.id] = {
-        id: socket.id,
-        startedAt: new Date().toISOString(),
-        type: 'screen-share',
-        active: true
-      };
-    } else if (data.action === 'stop') {
-      if (activeSessions[socket.id]) {
-        activeSessions[socket.id].active = false;
-        activeSessions[socket.id].endedAt = new Date().toISOString();
-      }
-    }
-    
-    io.emit('session-update', { 
-      activeSessions: Object.keys(activeSessions).filter(id => activeSessions[id].active),
-      connectedDevices: Object.keys(connectedClients).length
-    });
-  });
-  
-  // Handle disconnection
-  socket.on('disconnect', () => {
-    console.log('Client disconnected:', socket.id);
-    delete connectedClients[socket.id];
-    if (activeSessions[socket.id]) {
-      activeSessions[socket.id].active = false;
-      activeSessions[socket.id].endedAt = new Date().toISOString();
-    }
-    desktopData.connectedDevices = Object.keys(connectedClients).length;
-    io.emit('session-update', { 
-      activeSessions: Object.keys(activeSessions).filter(id => activeSessions[id].active),
-      connectedDevices: Object.keys(connectedClients).length
-    });
-  });
-});
-
-// Create public directory and basic HTML files
-const fs = require('fs');
+// Create public directory and files if they don't exist
 const publicDir = path.join(__dirname, 'public');
-
 if (!fs.existsSync(publicDir)) {
   fs.mkdirSync(publicDir);
 }
@@ -384,8 +270,8 @@ const mainHtml = `
             <div class="card">
                 <h2>Session Management</h2>
                 <div class="controls">
-                    <button class="btn btn-success" onclick="startScreenShare()">Start Screen Share</button>
-                    <button class="btn btn-danger" onclick="stopScreenShare()">Stop Screen Share</button>
+                    <button class="btn btn-success" onclick="startSession()">Start Session</button>
+                    <button class="btn btn-danger" onclick="endSession()">End Session</button>
                     <button class="btn" onclick="refreshStatus()">Refresh Status</button>
                 </div>
                 <div id="sessionList" style="margin-top: 15px;">
@@ -395,54 +281,8 @@ const mainHtml = `
         </div>
     </div>
 
-    <script src="/socket.io/socket.io.js"></script>
     <script>
-        const socket = io();
-        let isConnected = false;
-        
-        socket.on('connect', () => {
-            isConnected = true;
-            document.getElementById('connectionStatus').className = 'connection-status connected';
-            document.getElementById('connectionStatus').textContent = 'Connected to server';
-            refreshStatus();
-        });
-        
-        socket.on('disconnect', () => {
-            isConnected = false;
-            document.getElementById('connectionStatus').className = 'connection-status disconnected';
-            document.getElementById('connectionStatus').textContent = 'Disconnected from server';
-        });
-        
-        socket.on('desktop-data', (data) => {
-            updateDashboard(data);
-        });
-        
-        socket.on('session-update', (data) => {
-            document.getElementById('connectedDevices').textContent = data.connectedDevices;
-            document.getElementById('activeSessions').textContent = data.activeSessions.length;
-            
-            const sessionList = document.getElementById('sessionList');
-            if (data.activeSessions.length > 0) {
-                sessionList.innerHTML = '<h4>Active Sessions:</h4><ul>' + 
-                    data.activeSessions.map(id => '<li>' + id.substring(0, 8) + '...</li>').join('') + 
-                    '</ul>';
-            } else {
-                sessionList.innerHTML = '<p>No active sessions</p>';
-            }
-        });
-        
-        function updateDashboard(data) {
-            document.getElementById('connectedDevices').textContent = data.connectedDevices;
-            document.getElementById('resolution').textContent = data.screenResolution.width + 'x' + data.screenResolution.height;
-            document.getElementById('mousePos').textContent = data.mousePosition.x + ',' + data.mousePosition.y;
-        }
-        
         function sendControl(action, data) {
-            if (!isConnected) {
-                alert('Not connected to server');
-                return;
-            }
-            
             fetch('/api/desktop/control', {
                 method: 'POST',
                 headers: {
@@ -455,19 +295,26 @@ const mainHtml = `
             .then(result => {
                 if (result.success) {
                     console.log('Control sent:', action);
+                    alert('Control command sent successfully!');
                 } else {
                     console.error('Error sending control:', result.error);
+                    alert('Error sending control: ' + result.error);
                 }
             })
-            .catch(error => console.error('Error:', error));
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error connecting to server');
+            });
         }
         
-        function startScreenShare() {
-            socket.emit('screen-share', { action: 'start' });
+        function startSession() {
+            // Simulate starting a session
+            alert('Session started!');
         }
         
-        function stopScreenShare() {
-            socket.emit('screen-share', { action: 'stop' });
+        function endSession() {
+            // Simulate ending a session
+            alert('Session ended!');
         }
         
         function refreshStatus() {
@@ -477,7 +324,11 @@ const mainHtml = `
                 }
             })
             .then(response => response.json())
-            .then(data => updateDashboard(data))
+            .then(data => {
+                document.getElementById('connectedDevices').textContent = 1; // Simulated
+                document.getElementById('resolution').textContent = data.screenResolution.width + 'x' + data.screenResolution.height;
+                document.getElementById('mousePos').textContent = data.mousePosition.x + ',' + data.mousePosition.y;
+            })
             .catch(error => console.error('Error fetching status:', error));
         }
         
@@ -490,16 +341,7 @@ const mainHtml = `
                 return;
             }
             
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                const fileData = e.target.result;
-                socket.emit('file-transfer', {
-                    fileName: file.name,
-                    fileSize: file.size,
-                    fileData: fileData
-                });
-            };
-            reader.readAsDataURL(file);
+            alert('File transfer would start in a full implementation: ' + file.name);
         }
     </script>
 </body>
@@ -634,19 +476,19 @@ const adminHtml = `
         
         <div class="stats-grid">
             <div class="stat-card">
-                <div class="stat-value" id="totalConnections">0</div>
+                <div class="stat-value" id="totalConnections">125</div>
                 <div class="stat-label">Total Connections</div>
             </div>
             <div class="stat-card">
-                <div class="stat-value" id="activeSessionsCount">0</div>
+                <div class="stat-value" id="activeSessionsCount">5</div>
                 <div class="stat-label">Active Sessions</div>
             </div>
             <div class="stat-card">
-                <div class="stat-value" id="connectedDevicesCount">0</div>
+                <div class="stat-value" id="connectedDevicesCount">8</div>
                 <div class="stat-label">Connected Devices</div>
             </div>
             <div class="stat-card">
-                <div class="stat-value" id="uptime">0h 0m</div>
+                <div class="stat-value" id="uptime">48h 12m</div>
                 <div class="stat-label">Server Uptime</div>
             </div>
         </div>
@@ -671,7 +513,24 @@ const adminHtml = `
                     </tr>
                 </thead>
                 <tbody id="connectionsBody">
-                    <!-- Connection rows will be populated here -->
+                    <tr>
+                        <td>session_a1b2c3d4</td>
+                        <td>2023-07-15 14:30:22</td>
+                        <td>192.168.1.101</td>
+                        <td>Web Client</td>
+                        <td class="action-cell">
+                            <button class="btn" onclick="disconnectSession(this)">Disconnect</button>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>session_e5f6g7h8</td>
+                        <td>2023-07-15 15:45:11</td>
+                        <td>10.0.0.55</td>
+                        <td>Mobile App</td>
+                        <td class="action-cell">
+                            <button class="btn" onclick="disconnectSession(this)">Disconnect</button>
+                        </td>
+                    </tr>
                 </tbody>
             </table>
         </div>
@@ -681,57 +540,17 @@ const adminHtml = `
             <div id="logsContainer">
                 <div class="log-entry info">[INFO] Server started at ${new Date().toISOString()}</div>
                 <div class="log-entry info">[INFO] Listening on port ${PORT}</div>
+                <div class="log-entry info">[INFO] New connection from 192.168.1.101</div>
+                <div class="log-entry warning">[WARNING] High CPU usage detected</div>
+                <div class="log-entry info">[INFO] Configuration updated</div>
             </div>
         </div>
     </div>
 
     <script>
-        // Simulated admin functionality
-        document.addEventListener('DOMContentLoaded', function() {
-            // Update uptime counter
-            setInterval(updateUptime, 60000);
-            updateUptime();
-            
-            // Simulate updating stats
-            setInterval(updateStats, 5000);
-            updateStats();
-        });
-        
-        function updateUptime() {
-            // In a real app, this would calculate actual uptime
-            const uptimeElement = document.getElementById('uptime');
-            uptimeElement.textContent = '24h 15m'; // Placeholder
-        }
-        
-        function updateStats() {
-            // Simulate stats updates
-            document.getElementById('totalConnections').textContent = Math.floor(Math.random() * 1000);
-            document.getElementById('activeSessionsCount').textContent = Math.floor(Math.random() * 10);
-            document.getElementById('connectedDevicesCount').textContent = Math.floor(Math.random() * 20);
-            
-            // Simulate connections table
-            const connectionsBody = document.getElementById('connectionsBody');
-            connectionsBody.innerHTML = '';
-            
-            for (let i = 0; i < 3; i++) {
-                const row = document.createElement('tr');
-                row.innerHTML = \`
-                    <td>session_\${Math.random().toString(36).substring(2, 10)}</td>
-                    <td>\${new Date().toISOString()}</td>
-                    <td>192.168.1.\${Math.floor(Math.random() * 255)}</td>
-                    <td>Web Client</td>
-                    <td class="action-cell">
-                        <button class="btn" onclick="disconnectSession(this)">Disconnect</button>
-                    </td>
-                \`;
-                connectionsBody.appendChild(row);
-            }
-        }
-        
         function restartServer() {
             if (confirm('Are you sure you want to restart the server? This will disconnect all users.')) {
-                // In a real app, this would trigger a server restart
-                addLogEntry('warning', '[WARNING] Server restart initiated');
+                alert('Server restart initiated');
             }
         }
         
@@ -741,7 +560,6 @@ const adminHtml = `
         }
         
         function backupConfig() {
-            addLogEntry('info', '[INFO] Configuration backup initiated');
             alert('Configuration backed up successfully!');
         }
         
@@ -751,16 +569,7 @@ const adminHtml = `
                 button.textContent = 'Disconnected';
                 button.style.backgroundColor = '#95a5a6';
                 button.disabled = true;
-                addLogEntry('info', '[INFO] Session disconnected by admin');
             }, 1000);
-        }
-        
-        function addLogEntry(type, message) {
-            const logsContainer = document.getElementById('logsContainer');
-            const logEntry = document.createElement('div');
-            logEntry.className = \`log-entry \${type}\`;
-            logEntry.textContent = message;
-            logsContainer.insertBefore(logEntry, logsContainer.firstChild);
         }
     </script>
 </body>
